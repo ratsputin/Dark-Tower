@@ -1,0 +1,141 @@
+Milton Bradley Dark Tower
+
+Chip labeled 
+MP7332-N2LL
+F 8223
+4149 PHILIPPINES
+
+die labeled
+MP7332
+
+12 buttons: Yes/Buy, Repeat, No/End, Haggle, Bazaar, Clear, Tomb/Ruin, Move, Sanctuary/Citadel, Dark Tower, 
+            Frontier, Inventory
+2 7-segment LEDs
+3 lamps
+speaker
+
+TMS1400 pinout
+
+R Outputs
+---------
+1  R0   keypad col 3 (No)
+2  R1   keypad col 2 (Repeat)
+3  R2   keypad col 1 (Yes)
+4  R3   N/C
+5  R4   75494 chip enable (lamps, speaker, LED select)
+6  R5   lower lamp
+7  R6   middle lamp
+8  R7   upper lamp
+9  R8   Rotation Sensor
+10 R9   motor
+11 R10  speaker out
+
+12 Vdd  9v battery negative
+13 Init diode to Vdd
+
+K Inputs
+--------
+14 K1   keypad row 1 (Dark Tower)
+15 K2   keypad row 4 (Yes)
+16 K4   keypad row 3 (Haggle)
+17 K8   keypad row 2 (Tomb)
+
+O Outputs
+---------
+18 O7   LED select (digit 1 or 2)
+19 O6   segment B
+20 O5   segment A
+21 O4   segment F
+22 O3   segment E
+23 O2   segment D
+24 O1   segment C
+25 O0   segment G
+
+26 OSC  pin 27 and 56pF cap to batt+ and 43K resistor to batt-
+27 OSC  pin 26 and cap and resistor
+28 Vss  9v battery positive
+
+TMS1400 tech specs
+
+- 4K 8-bit ROM
+- 128 x 4-bit scratchpad RAM (8 files [X register] by 16 x 4-bit words [Y register])
+- 4 x inputs
+- 11 R outputs; 8 O outputs
+- 3 stack levels
+- 28 pins
+
+keypad matrix
+
+         R2          R1           R0                R8
+K1   Dark Tower   Frontier    Inventory
+K2    Yes/Buy      Repeat       No/End
+K4     Haggle      Bazaar       Clear
+K8   Tomb/Ruin      Move   Sanctuary/Citadel  Rotation Sensor
+
+
+Output PLA information based on 4-bit Accumulator (O outputs -- TDO and CLO instructions)
+
+A1 A2 A4 A8       Output
+-- -- -- --       ------
+ 0  0  0  0 (0) = bafedc = zero
+ 1  0  0  0 (1) = bc     = one
+ 0  1  0  0 (2) = baedg  = two
+ 1  1  0  0 (3) = badcg  = three
+ 0  0  1  0 (4) = bfcg   = four
+ 1  0  1  0 (5) = afdcg  = five
+ 0  1  1  0 (6) = afedcg = six
+ 1  1  1  0 (7) = bac    = seven
+ 0  0  0  1 (8) = bafedcg= eight
+ 1  0  0  1 (9) = bafdcg = nine
+ 1  1  0  1 (B) = afed   = C
+ 0  0  1  1 (C) = bafeg  = P
+ 1  0  1  1 (D) = fed    = L
+ 0  1  1  1 (E) = g      = dash
+ 1  1  1  1 (F) =        = blank
+
+Status Latch selects which LED segment (0 or 1) on output for a total of five bits (A1, A2, A4, A8 and S)
+Status Latch = clear - Left display; set - Right display (opposite of display routines using 6/12 Bit 3)
+
+-----------------------------------------------------------------------------
+
+Additional chips on the board:
+
+75494 'Hex MOS to LED digit drivers' - Speaker, lamps, digit select
+Basically 6 inverting open-collector drivers with a common enable input. 
+This chip is another one that turns up in electronic games as an LED 
+driver, etc.
+
+Pinout : 
+1 : Vss (+ve supply)
+2 : Input 1
+3 : Output 1
+4 : Output 2
+5 : Input 2
+6 : Output 3
+7 : Input 3
+8 : Vdd (ground)
+9 : Enable/ (common to all 6 sections) - From Pin 5 (R4)
+10 : Input 4
+11 : Output 4
+12 : Input 5
+13 : Output 5
+14 : Output 6
+15 : Input 6
+16 : Vcc (second +supply, <= Vss)
+
+TL496C '9V Power Supply Controller' (the TMS1000 runs at 9V, BTW).
+Basically a switching regulator normally used to get 9V from a couple of 
+primary cells.
+
+Pinout : 
+
+1 : Feedback
+2 : 2C input (2 cells)
+3 : 1C input  (1 cell)
+4 : T input (mains transformer)
+5 : Ground
+6 : Switching transistor output
+7 : Ground
+8 : Output
+
+

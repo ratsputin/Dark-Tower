@@ -1,0 +1,31 @@
+Instruction Func	OPCODE Bits	HEX	Inst
+----------------	-----------	---	----
+0011001111101000	00000000	00	MNEA - Memory not equal to Accumulator
+0011010111010000	00000001	01	ALEM - Accumulator less than or equal to Memory
+0010101111101001	00000010	02	YNEA - Y Register not equal to Accumulator
+1011011111001100	00000011	03	XMA - Exchange Memory and Accumulator
+0011001111011100	00000110	06	AMAAC - Add Memory to Accumulator -> Accumulator with Carry
+0011011101011100	00000111	07	DMAN - Decrement memory -> Accumulator with Borrow
+0001111111001100	00001000	08	TKA - Transfer K inputs to Accumulator
+0001111111101000	00001110	0E	KNEZ - K inputs not equal to Zero
+0011101111001010	00100000	20	TAY - Transfer Accumulator to Y Register
+0011011111001100	00100001	21	TMA - Transfer Memory to Accumulator
+0011011111001010	00100010	22	TMY - Transfer Memory to Y Register
+0010111111001100	00100011	23	TYA - Transfer Y Register to Accumulator
+1011111111001100	00100110	26	TAMZA - Transfer Accumulator to Memory and Zero Accumulator
+1011111111001000	00100111	27	TAM - Transfer Accumulator to Memory
+0011010111010100	00111100	3C	SAMAN - Subtract Accumulator from Memory -> Accumulator with Borrow
+0011110111010100	00111101	3D	CPAIZ - Complement Accumulator and increment
+0011011111010100	00111110	3E	IMAC - Increment Memory -> Accumulator
+0011011111101000	00111111	3F	MNEZ - If Memory not equal to Zero, 1 -> Status
+0010111101011010	00X00100	04/24	DYN, TAMDYN - Decrement Y Register with Borrow
+0010111111010010	00X00101	05/25	IYC, TAMIYC - Increment Y Register with Carry
+0001011110101000	001110XX	38-3B	TBIT1 - Test Memory Bit
+0001111111001010	0100XXXX	4X	TCY	
+0010111110101000	0101XXXX	5X	YNEC
+0110111111000010	0110XXXX	6X	TCMIY	
+1010111101010010	0010010X	24/25	TAMDYN, TAMIYC
+0001101111010100	0111XXXX	7X	IAC, DAN, CLA, A1ACC, A2/3/.../13/14AAC	
+0001111111010100	01111111	7F	CLA
+
+All opcodes match standard TMS1000/TMS1100 opcodes--validated against PLA mask

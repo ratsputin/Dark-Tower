@@ -1,0 +1,124 @@
+RAM Addressing nomenclature: a/b
+- a - RAM file ID: X register
+- b - 4-bit word in file: Y register
+
+MAME Debugger info
+------------------
+printf "PC=$%03x, A=$%01X, X=$%01X, Y=$%01X, STATUS=%01X",curpc, a, x, y, status
+
+Player 1 inventory pt 1 - 1/3
+-----------------------------
+- 0b1000 - Sword
+- 0b0100 - Scout
+- 0b0010 - Healer
+- 0b0001 - Beast
+
+Player 1 inventory pt 2 - 2/3
+-----------------------------
+- 0b1000 - Gold key
+- 0b0100 - Silver key
+- 0b0010 - Brass key
+- 0b0001 - Key not found yet
+
+Drum position - 0/0
+-------------------
+1 - Warrior/Food/Beast
+2 - Scout/Healer/Gold
+3 - Gold Key/Silver Key/Brass Key
+4 - Dragon/Sword/Pegasus
+5 - Wizard/Bazaar Closed/Key Missing
+6 - Victory/Warriors/Brigands
+7 - Cursed/Lost/Plague
+
+3/0 - 3/8 significance
+----------------------
+3/1 bit 0 - difficulty?  Probably random.  Checked when calculating starting Brigands - 3/0 = 0 
+3/1 bit 1 - set is apparently a level 2 or 3 game; reset is a level 1 or 4 game
+
+4/12 significance
+-----------------
+Bit 0 - cleared at beginning of turn.  Set when player is lost but has Scout.
+Bit 1 - Haven't haggled yet?  First round has better odds of succeeding
+
+4/13 significance
+-----------------
+Bit 0 - Warrior count changed during encounter
+Bit 1 - Food count changed during encounter
+Bit 2 - Gold count changed during encounter
+Bit 3 - Found a beast during the encounter
+
+4/14 significance
+-----------------
+Bit 0 - Found scout during encounter
+Bit 1 - Found healer during encounter
+Bit 2 - Brass key found during encounter
+Bit 3 - Silver key found during encounter
+
+4/15 significance
+-----------------
+Bit 0 - Found gold key during encounter
+Bit 1 - Found sword during encounter
+Bit 2 - Found Pegasus during encounter
+
+6/12 significance
+-----------------
+Bit 0 - Set at beginning of Prompt routine
+Bit 1 - Is display blank during flashing routine?  1 = blank; 0 = data
+Bit 2 - Immediate update of LEDs from 7/14-15?
+Bit 3 - Which display is currently selected (1 = left, 0 = right) - Opposite of Status Latch
+
+6/13 significance
+-----------------
+Bit 0-1 - Which R output we're dealing with 0-2
+Bit 2 - Nothing was read last if set?
+Bit 3 - 
+
+6/14 significance
+-----------------
+Set to 0 at end of Prompt routine before reading keyboard
+
+PROMPT routine - Y return
+-------------------------
+0 - Yes/Buy
+1 - Haggle
+2 - Tomb/Ruin
+3 - Dark Tower
+4 - Repeat
+5 - Bazaar
+6 - Move
+7 - Frontier
+8 - No/End
+9 - Clear
+10 - Sanctuary/Citadel
+11 - Inventory
+
+LC0 routine examples - Examples represent 3/0, 3/1, 3/2
+--------------------
+Calling: 1 5 3
+Returns: 3 3 E; 4 = 2 A 6; 5 = 0 4 4; 6 = 0 0 1
+
+Calling: 3 F 0
+Returns: 9 9 F; 5 = 0 C C; 6 = 0 0 3
+
+Calling: 9 9 F
+Returns: B 0 5; 5 = 0 4 4; 6 = 0 1 4
+
+Calling: B 0 5
+Returns: 1 E 1; 5 = 0 C 0; 6 = 0 2 2
+
+Calling: B 5 E
+Returns: 1 D 1; 5 = 0 C 4; 6 = 0 2 3 - Result: Lost
+
+Calling: 1 4 4
+Returns: 3 0 D; 5 = 0 4 0; 6 = 0 0 1; A=D
+
+300 Routine example
+-------------------
+4/Y = x 1 6
+5/Y = x 1 0
+
+Random encounter stuff
+----------------------
+R = random number
+Lost - R = R + 13
+Dragon - R = R + 14
