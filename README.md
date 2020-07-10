@@ -100,7 +100,9 @@ As the headings indicate, the first column is the name of the label, the second 
 ### Overview
 One of the major challenges with disassembling TMS1xxx code is due to its use of the chapter buffer and page buffer registers on branches and calls.  Judging from the way the Dark Tower code was written and some of the examples I saw in the documentation, the TI TMS1xxx assembler supported both short and log branches/calls.  In the case of a long branch/call, the appropriate `ldp` or `ldp`/`tpc`/`ldp` combo was inserted into the code and that information was lost.  From a disassembly perspective, an assumption has to be made as to the contents of the page buffer and chapter buffer registers on a given `br` or `call` to decide whether it's long or short.
 
-Now, the assumption really becomes an educated guess based on evidence in the source code.  _Generally speaking_, a long `br` or `call` (the TI assembler used `bl` according to page 2-6 of the TMS1000 Programming Reference Manual) will be immediately preceded by the appropriate page/chapter buffer register loads thanks to the assembler processing the `bl`.  Additionally, upon returning from a `call`, the page and chapter buffer registers are reset to the current page.  Unfortunately, that's not the case with a `br`.  Because the page and chapter buffer registers directly impact the target absolute address, it's necessary to manage this situation in the disassembler so I basically worked under the assumption that the disassembler's internal page and chapter buffer registers should be reset after any `call` or `br`.  This worked in 99% of the cases I ran into.
+Now, the assumption really becomes an educated guess based on evidence in the source code.  _Generally speaking_, a long `br` or `call` (the TI assembler used `bl` according to page 2-6 and `calll` according to the sample code on page 14-8 of the TMS1000 Programming Reference Manual) will be immediately preceded by the appropriate page/chapter buffer register loads thanks to the assembler processing the `bl`/`calll`.  Additionally, upon returning from a `call`, the page and chapter buffer registers are reset to the current page.  Unfortunately, that's not the case with a `br`.  Because the page and chapter buffer registers directly impact the target absolute address, it's necessary to manage this situation in the disassembler so I basically worked under the assumption that the disassembler's internal page and chapter buffer registers should be reset after any `call` or `br`.  This worked in 99% of the cases I ran into.
+
+Arguably, the `bl`/`calll` could have been integrated back into the sources when their use was implied; this functionality was even already in Paul's disassembler.  At the time, though, I wanted the generated disassembly to correspond line-for-line with the object code.  To this end, I stripped that code out of the disassembler to ensure I had good output.
 
 ### The edge cases
 Because ROM space is at a premium, I discovered that the above rule was broken in a few instances at the end of some pages.  My guess is, the programmer(s) needed the extra bytes so they went in and massaged the code to recover the extra bytes that would be unnecessarily consumed by extra `ldp` instructions.  Here's an example from the listing at the end of Chapter 0, page 6:
@@ -147,3 +149,12 @@ S18C    ldx   4
 	br    L1DF      
 ```
 Note there were two extra `ldp  7` instructions, wasting two extra words of ROM space.  It appears the programmer went back and patched the code slightly to take out the extra, unnecessary instructions.  This may also explain the spurious `mnea` at the end of the page.  As soon as I discovered this situation, I went back and reviewed the code at the end of each page and discovered about a half-dozen more instances that have been manually repaired.
+
+## Possible future work
+Both the disassembler and assembler are purpose-built for use in this project.  If there is interest, the following are improvements I'm thinking about:
+
+- Support parameters for input and output files on both the assembler and disassembler
+- Support `bl` and `calll` in the assembler
+- Support generating `bl` and `calll` in the disassembler
+- Change the formatting of the output of the disassembler and the input of the assembler to match the Programmer Guide
+- Update both programs to not only support the TMS1100/TMS1400 instruction set but also the TMS1000/TMS1200 as well as was originally the case
