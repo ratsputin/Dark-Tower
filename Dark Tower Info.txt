@@ -77,6 +77,13 @@ Bit 3 -
 -----------------
 Set to 0 at end of Prompt routine before reading keyboard
 
+File 7 Initial (Bazaar) significance
+------------------------------------
+7/1-2 - Warrior price (1-5 Gold)
+7/3-4 - Beast price (15-25 Gold)
+7/5-6 - Scout price (10-20 Gold)
+7/7-8 - Healer price (10-20 Gold)
+
 PROMPT routine - Y return
 -------------------------
 0 - Yes/Buy

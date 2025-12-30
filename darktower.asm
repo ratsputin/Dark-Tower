@@ -1,14 +1,17 @@
 
 ; *** Chapter 0 page 0
 
+;
+; Resynchronize barrel position storage at 0/0
+;
 S000    ldx   0         
-	tma             
+	tma             ; Pick up current barrel position from 0/0
 	a9aac           
-	br    S03E      
-S00F    tcmiy 8         
+	br    S03E      ; Position was invalid (>6)
+S00F    tcmiy 8         ; Invalidate 0/0
 	tcy   0         
-	br    S01B      
-S03E    tcmiy 0         
+	br    S01B      ; Fall through to finish this move
+S03E    tcmiy 0         ; Reset 0/0 (current barrel position) to 0
 
 ;
 ; Rotate the drum to the position targeted in 4/0
@@ -18,33 +21,39 @@ S03D    ldx   0
 	tcy   0         
 	tma             
 	ldx   4         
-	mnea            
+	mnea            ; Check to see if we're already in the right position
 	br    S033      
 	retn            
 
 S033    ldp   1         
-	call  L040      
+	call  ROTONE	; Rotate tower one step
 	ldx   5         
 	tcy   0         
-	tma             
+	tma             ; Check rotation timer high nibble at 5/0
 	ldx   1         
-	alem            
+	alem            ; against max threshold high nibble at 1/0
 	br    S018      
-	br    S000      
+	br    S000      ; Rotation exceeded threshold - this is the first (index) position on the barrel
 S018    mnea            
-	br    S01C      
+	br    S01C      ; 5/0 is less than 1/0 - move was successful
 	ldx   6         
-	tma             
+	tma             ; Check rotation timer low nibble at 6/0
 	ldx   2         
-	alem            
-	br    S01C      
-	br    S000      
+	alem            ; against max threshold low nibble at 2/0
+	br    S01C      ; Below threshold - move was successful
+	br    S000      ; Highs were equal but low was greater than low threshold - this is the first position
 S01C    ldx   0         
-	tma             
-	a9aac           
-	br    S00F      
-	imac            
-	tam             
+	tma             ; Pick up previous barrel position from 0/0 (0-6 are valid values)
+	a9aac           ; Add 9 to perform mod 7 math
+	br    S00F      ; Result is 16 or greater with an overflow (barrel wrapped around to position 0)
+	imac            ; Increment barrel position
+	tam             ; and update 0/0
+;
+; Adjust barrel rotation timer max based on how long last movement took (accommodates battery drain)
+;
+; Barrel rotation timer is important as it allows the game to distinguish between the normal
+; index marks and the 0 index mark (which is wider).
+;
 S01B    ldx   6         
 	tma             
 	amaac           
@@ -74,24 +83,30 @@ S00A    ldx   2
 
 ; *** Chapter 0 page 1
 
-L040    tcy   8         ; Select the Rotation Sensor
+;
+; Low-level motor control.  Move tower one step.
+;
+ROTONE  tcy   8         ; Select the Rotation Sensor
 	setr            
-	tcy   9         ; Select the Motor
+	tcy   9         ; Select the Motor and turn it on
 	setr            
 	ldx   6         
 	tcy   0         
-	tcmiy 0         
+	tcmiy 0         ; Zero out Debounce counter low at 6/0
 	ldx   5         
 	tcy   0         
-	tcmiy 0         
-S077    tka             
+	tcmiy 0         ; Zero out Debounce counter high at 5/0
+S077    tka             ; Check Rotation Sensor
 	dan             
-	br    S04E      
-	br    S077      
+	br    DEBOUNC      
+	br    S077      ; Loop until sensor triggers (next position reached)
 S079    ldx   6         
-	tcmiy 15        
+	tcmiy 15        ; Set Debounce counter low at 6/0 to 15 (5/0 was incremented)
 	br    S071      
-S04E    tcy   5         
+;
+; Debounce Rotation Sensor's signal to make sure it's not just noise
+;
+DEBOUNC tcy   5         ; Set up for a tight loop - 40x
 	tya             
 	tcy   8         
 S075    dyn             
@@ -100,20 +115,20 @@ S075    dyn
 	br    S075      
 	ldx   6         
 	tcy   0         
-	imac            
-	br    S04B      
-	br    S078      
+	imac            ; Increment Debounce counter low at 6/0 to prevent infinite loop
+	br    S04B	; Debounce counter low at 6/0 overflowed      
+	br    S078
 S04B    tam             
 	ldx   5         
 	imac            
 	br    S079      
 S078    tam             
-S071    tka             
+S071    tka             ; Wait for Rotation Sensor pulse to end
 	dan             
-	br    S04E      
-	tcy   8         
+	br    DEBOUNC   ; Hasn't ended yet...
+	tcy   8         ; Select Rotation Sensor and turn it off
 	rstr            
-	tcy   9         
+	tcy   9         ; Select Motor and turn it off
 	rstr            
 	retn            
 
@@ -161,7 +176,7 @@ S09F    tay
 	tka             ; Pick up K inputs from keyboard
 	rstr            ; Reset R output addressed by Y
 	tcy   14        
-	xma             ; Exchange 6/14 and results of TKA - Look at the last read?
+	xma             ; Exchange 6/14 and results of TKA - Look at the last key read
 
 	tbit1 0         ; Keyboard row 1 - Dark Tower/Frontier/Inventory - set? (3/7/11)
 	br    S0AE      ; Add 3 to accumulator
@@ -192,7 +207,7 @@ S0B0    tay
 	br    S080      ; Go back and scan the next R output
 
 S085    tcy   14        
-	tma             ; Load 6/14
+	tma             ; Load 6/14 (last key pressed)
 	br    S0B1      
 
 S0AE    iac             
@@ -207,14 +222,14 @@ S0B1    tcy   15
 	ynec  12        
 	br    S091      
 	tcy   13        
-	sbit  3         ; Set 6/13 bit 3
+	sbit  3         ; Set 6/13 bit 3 - a key has been pressed, prep for click sound
 	tcy   12        
-	tbit1 0         ; 6/12 bit 0 set?
+	tbit1 0         ; 6/12 bit 0 set (do not update display)?
 	br    S08A      ; Go back to prompt routine
 	br    S089      ; Success, return?
 
 S091    tcy   12        
-	tbit1 0         ; 6/12 bit 0 set?
+	tbit1 0         ; 6/12 bit 0 set (do not update display)?
 	br    S099      
 
 S089    cla             
@@ -223,7 +238,7 @@ S089    cla
 	br    L2A2      ; TDO, pick up value in 6/15 to Y and return
 
 S099    tcy   13        
-	tbit1 3         ; 6/13 bit 3 set?
+	tbit1 3         ; 6/13 bit 3 set (keypress detected)?
 	br    S0AA      
 S08A    ldp   7         
 	br    L1C6      ; Jump back into prompt routine and refresh the LEDs some more
@@ -231,7 +246,7 @@ S08A    ldp   7
 S0AA    ldp   3         
 	tpc             
 	ldp   1         
-	call  PLYTICK      
+	call  PLYTICK   ; Make the keypress "tick" sound
 	br    S089      
 
 
@@ -670,11 +685,11 @@ S1C5    retn
 ;********************************************************************************
 PROMPT  ldx   6         
 	tcy   12        
-	sbit  0         
-	rbit  2         ; Don't update LEDs immediately (?)
-L1F8    ldx   6         
+	sbit  0         ; Set 6/12 bit 0 to wait for keypress (blocking)
+	rbit  2         ; Clear 6/12 bit 2 to set LED display to blink
+L1F8    ldx   6         ; Entrypoint for non-blocking input
 	tcy   13        
-	rbit  3         
+	rbit  3         ; Clear 6/13 bit 3 - a key has not yet been hit
 
 L1C6    ldp   10        
 	call  REFRLED   
@@ -689,15 +704,16 @@ L1C6    ldp   10
 	call  S1CA      
 	tam             
 ;
-; Set things up before reading the keyboard
+; Set things up before reading the keyboard - Initialize flags at 6/13 and 6/14
 ;
 	ldx   6         
 	tcy   13        
-	rbit  2         
-	sbit  1         
-	sbit  0         
+	rbit  2         ; Enable sound
+	sbit  1         ; Set state to Waiting for user input
+	sbit  0         ; Display in Raw format (not BCD)
+	
 	tcy   14        
-	tcmiy 0         
+	tcmiy 0         ; Clear previous key pressed
 	ldp   2         
 	br    READKBD   
 
@@ -1103,6 +1119,7 @@ S2EA    tbit1 1
 
 ;********************************************************************************
 ; SU2B10 - Perform Base 10 subtraction on values in scratchpad RAM 4/1-2 and 5/1-2
+;          Return borrow flag in A
 ;
 ;          Subtract the two-digit base 10 number encoded in 4/1 and 4/2 from
 ;          the two-digit base 10 number encoded in 5/1 and 5/2 giving
@@ -1366,17 +1383,17 @@ S3C1    ldx   0
 	ldp   7         
 	call  PROMPT    ; Display flashing "--" and wait for keypress
 	ldp   1         
-	call  L040      
+	call  ROTONE      
 
 	ldx   0         
 	tcy   0         
-	tcmiy 8         ; 0/0 = 8 - Last display position 8=unknown?
+	tcmiy 8         ; 0/0 = 8 - Last barrel position 8=unknown?
 	ldx   1         
 	tcy   0         
-	tcmiy 15        ; 1/0 = 15
+	tcmiy 15        ; 1/0 = 15 - High-order barrel timer threshold
 	ldx   2         
 	tcy   0         
-	tcmiy 15        ; 2/0 = 15
+	tcmiy 15        ; 2/0 = 15 - Low-order barrel timer threshold
 	tcy   0         
 	ldp   8         
 	call  ROTDRUM   ; Cycle display to position 0 - on return, 0/0=0; 1/0=4; 2/0=12
@@ -2433,6 +2450,8 @@ ROTDRM2 ldp   0
 ; When player has been attacked by the Dragon and doesn't
 ; have a sword for defense.  Figure out how much the Dragon will take.
 ;
+; Also used by the Wizard's Curse function.
+;
 ; Formula is based on how many Warriors or how much Gold player has.  More
 ; in their inventory means the Dragon takes more.
 ;
@@ -2441,6 +2460,13 @@ ROTDRM2 ldp   0
 L6C0    ldx   4         
 	tcy   2         
 	tma             ; Take a look at the 1s digit of 4/2
+;
+; Start the calculation based on the original value in the 1s digit
+;
+; 0-3 becomes 0
+; 4-7 becomes 1
+; 8-9 becomes 3
+;
 	sbit  0         
 	sbit  1         ; Start with 3
 	tbit1 2         ; Do they have 4 or more of this
@@ -2449,34 +2475,47 @@ L6C0    ldx   4
 S6FD    tbit1 3         ; Do they have 8 or more of this
 	br    S6EF      ; Yep, leave bit 1 set
 	rbit  1         
-S6EF    rbit  2         
+S6EF    rbit  2         ; Always clear bits 2 and 3 (maximum value is 3)
 	rbit  3         
 
+;
+; Now, check the original 10s digit
+;
+; 1 (10-19 originally) adds 2 to 1s digit
+; 2 (20-29 originally) adds 5 to 1s digit
+;
 	tcy   1         ; Take a look at the 10s digit at 4/1
 	tbit1 0         ; At least 10
-	br    S6F1      ; Add 2 more
+	br    S6F1      ; Add 2 more to 1s digit
 S6E7    tbit1 1         ; At least 20
-	br    S6CB      ; Add 5 more
+	br    S6CB      ; Add 5 more to 1s digit
+;
+; Now, tweak the 10s digit the same way the 1s digit was tweaked originally
+;
+; 0-3 becomes 0
+; 4-7 becomes 1
+; 8-9 becomes 3
+;
 S6DD    sbit  0         
-	sbit  1         
-	tbit1 2         
-	br    S6EC      
+	sbit  1         ; Start with 30
+	tbit1 2         ; Did they have 40 or more?
+	br    S6EC      ; Yes, leave bit 0 set
 	rbit  0         
-S6EC    tbit1 3         
-	br    S6E1      
+S6EC    tbit1 3         ; Did they have 80 or more?
+	br    S6E1      ; Yes, leave bit 1 set
 	rbit  1         
-S6E1    rbit  2         
+S6E1    rbit  2         ; Always clear bits 2 and 3 (maximum value is 3)
 	rbit  3         
 
 	retn            
 
-S6CB    tcy   2         
+S6CB    tcy   2         ; Add 5 to 1s digit
 	tma             
 	a5aac           
 	tamdyn          
 	br    S6DD      
 
-S6F1    tcy   2         
+S6F1    tcy   2         ; Add 2 to 1s digit
 	tma             
 	a2aac           
 	tamdyn          
@@ -2895,139 +2934,156 @@ L7D4    ldp   0
 ; *** Chapter 2 page 0
 
 ;
-; BRIGANDS!!!  Handle the encounter
+; Brigand encounter
+;
+; Determine how many Brigands the player will face. Instead of a random number, "tether" the enemy
+; strength to the player’s current Warrior count to ensure the fight is always challenging but fair.
+;
+; 1. Generate a value from 0-2 to give a random headcount advantage (either Warriors or Brigands).
+; 2. Based on bit 3 of 3/1 (continually updated random value when waiting for a keypress), determine
+;    if advantage goes to Player (bit set) or to Brigands (bit clear).
+; 3. Take player Warrior count and add or subtract advantage to give Brigand count
 ;
 L800    ldp   15        
-	call  LRANDOM   
+	call  LRANDOM   ; Random number between 0-15
 	ldp   15        
-	call  LBE5      
+	call  LBE5      ; Scale it down to 0-2 - this will be the advantage for either the Player or Brigands
 	ldx   4         
-	tcy   1         
+	tcy   1         ; Set up for BCD arithmetic in BCD scratchpad at 4/1-2
 	tcmiy 0         ; 4/1 = 0
-	tam             ; 4/2 = 
+	tam             ; 4/2 = Result of LBE5
 	ldp   15        
-	call  LBD4      
+	call  LBD4      ; Copy player's current warrior count to BCD scratchpad at 5/1-2
 	ldx   3         
 	tcy   1         
-	tbit1 3         
-	br    S816      
-	ldp   4         
-	call  LADDB10   
+	tbit1 3         ; Check bit 3 of 3/1 - Who gets the advantage?
+	br    S816      ; Bit is set - easy fight - Player gets advantage
+	ldp   4         ; Bit was clear - hard fight - Brigands get advantage
+	call  LADDB10   ; Add value in 4/1-2 to the player Warrior count in 5/1-2 giving Brigand count
 	ldp   1         
 	tpc             
 	ldp   14        
-	mnez            
-	call  LOAD99    
+	mnez            ; Check 5/0 to see if there is an overflow of Brigands (>100)?
+	call  LOAD99    ; If so, drop 99 in 5/1-2
 	br    S80D      
-S816    ldp   0         
+S816    ldp   0         ; Easy fight - Player advantage
 	tpc             
 	ldp   12        
-	call  SU2B10    
-	mnez            
-	br    S831      
+	call  SU2B10    ; Subtract the value in 4/1-2 from 5/1-2 (player warrior count) giving Brigand count
+	mnez            ; Underflow at 5/0 on Brigands?
+	br    S831      ; Yes
 	tcy   1         
+	mnez            ; Is 5/1 (Brigand 10s) != 0?
+	br    S80D      
+	tcy   2         ; Is 5/2 (Brigands 1s) != 0?
 	mnez            
 	br    S80D      
-	tcy   2         
-	mnez            
-	br    S80D      
-S831    tcy   1         
-	tcmiy 0         
-	tcmiy 1         
+S831    tcy   1         ; Zero or fewer Brigands - not very challenging...
+	tcmiy 0         ; 0 -> 5/1
+	tcmiy 1         ; 1 -> 5/2 - We have to have at least one Brigand for an encounter
 S80D    ldp   4         
-	call  L913      ; Update the Brigand count from 5/1-2
+	call  L913      ; Update the encounter Brigand count at 3/12-13 from 5/1-2
 L836    ldp   3         
 	tpc             
 	ldp   7         
 	call  PLYBUGL   
 	ldp   2         
-	call  LCPBRIG   ; Copy Brigand count to 5/1-2 for calculations
+	call  LCPBRIG   ; Copy Brigand count to 5/1-2 to prepare for call to 5TODISPB
 	ldp   3         
 	call  5TODSPB   ; Copy Brigand count to Display Buffer
 	tcy   6         ; Victory/Warriors/Brigands
 	ldp   9         
-	call  ROTDRM3   
+	call  ROTDRM3   ; Rotate the drum to Brigands
 	ldp   0         
 	tpc             
 	ldp   9         
-	call  L27B      ; Light the lower window and beep
+	call  L27B      ; Light the lower window, update the LED display with the Brigand count, and beep
 	ldx   7         
 	tcy   14        
 	tcmiy 15        ; 7/14 = 15 (" ")
-	tcmiy 15        ; 7/15 = 15 (" ")
+	tcmiy 15        ; 7/15 = 15 (" ") - Two blanks to clear LED display
 	ldp   0         
 	tpc             
 	ldp   9         
-	call  L267      
+	call  L267      ; Clear the LED display of the Brigand count and prepare for Warrior count
 	ldp   1         
 	br    L840      
 
 ; *** Chapter 2 page 1
 
 ;
-; Add the count of 
+; Combat loop - Make sure there is a non-zero number of Brigands to fight (the battle isn't over)
 ;
 L840    ldx   3         
 	tcy   12        
-	tma             ; Brigand fight count 10s digit
+	tma             ; Remaining Brigands count 10s digit
 	tcy   13        
-	amaac           ; Add the Brigand fight count 1s digit
-	br    S87B      
-	dan             
-	br    S87B      
-	retn            
+	amaac           ; Add the remaining Brigand count 1s digit
+	br    S87B      ; There's an overflow - clearly there were Brigands
+	dan             ; Subtract 1
+	br    S87B      ; There's no underflow - there was at least one Brigand
+	retn            ; Battle is over (no Brigands remain)
 
 S87B    ldx   6         
 	tcy   12        
-	rbit  0         
+	rbit  0         ; Clear bit 0 of 6/12 (do not wait for input)
 	ldx   7         
 	tcy   14        
 	tcmiy 15        ; 7/14 = 15 (" ")
-	tcmiy 15        ; 7/15 = 15 (" ")
+	tcmiy 15        ; 7/15 = 15 (" ") Set display to blanks
 	ldx   3         
 	tcy   9         
 	tma             ; Pick up player count
 	a14aac          ; More than one player?
-	br    S85B      ; Yes
+	br    S85B      ; Yes - do special check for sufficient Warriors
 S86B    ldp   0         
 	tpc             
 	ldp   7         
-	call  L1F8      
-	ynec  8         
-	br    S851      
-S842    call  S855      
+	call  L1F8      ; Perform non-blocking read of keyboard to allow player to retreat
+	ynec  8         ; Did player hit the No/End button (retreat)?
+	br    S851      ; Nope - into combat...
+;
+; Multiplayer game where current player has two or fewer Warriors OR player retreats
+;
+; Kill a single Warrior and end combat
+; 
+S842    call  KILLONE   ; Kill just one Warrior
 	tcy   6         
-	setr            
+	setr            ; Turn on the Warrior lamp
 	ldp   3         
 	tpc             
 	ldp   11        
-	call  PLYDETH   
+	call  PLYDETH   ; Play the death march
 	tcy   6         
-	rstr            
+	rstr            ; Turn off the Warrior lamp
 	cla             
 	retn            
 
-S85B    ldx   2         
+S85B    ldx   2         ; Multiplayer game - special Warrior count check
 	tcy   1         
 	mnez            
-	br    S86B      
-	tcy   2         
+	br    S86B      ; Sufficient (non-zero) Warriors (10 or more)
+	tcy   2         ; Less than 10, check 1s digit
 	tma             
-	a13aac          
-	br    S86B      
-	br    S842      
+	a13aac          ; Add 13 to check to see if player has at least three Warriors
+	br    S86B      ; Sufficient (three or more) Warriors
+	br    S842      ; Nope, two or less Warriors
+;
+; Combat resolution
+;
 S851    ldp   15        
-	call  LRANDOM   
+	call  LRANDOM   ; Generate a random number from 0-15 for combat strength multiplier (0-3 after massaging)
 	ldx   5         
 	tcy   3         
-	tam             
-	rbit  3         
-	rbit  2         
+	tam             ; Store it in 5/3 (scratchpad RAM)
+	rbit  3         ; Clear bit 3
+	rbit  2         ; and clear bit 2, limiting random value to 0-3
 	ldp   15        
-	call  LRANDOM   
+	call  LRANDOM   ; Give us another random number
 	ldp   2         
 	br    L880      
-S855    ldx   4         
+
+KILLONE ldx   4         ; Kill just one Warrior
 	tcy   1         
 	tcmiy 0         
 	tcmiy 1         
@@ -3036,50 +3092,70 @@ S855    ldx   4
 
 ; *** Chapter 2 page 2
 
+;
+; Generate combat factors
+;
+; - Calculate combat strength by multiplying the player's Warrior count by a random multiplier (1-4)
+; - Calculate a sub-round count to determine how many times a player must beat the Warriors to win a round (up to 4x)
+;
 L880    ldx   5         
 	tcy   11        
-	tam             
-	rbit  3         
-	rbit  2         
+	tam             ; Store random value in 5/11 - this will be the number of sub-rounds the player must win to win a round
+	rbit  3         ; Clear bit 3
+	rbit  2         ; and bit 2, limiting random value again to 0-3
 	ldp   15        
-	call  LBD4      
+	call  LBD4      ; Pick up player Warrior count and drop it in 5/1-2
 	tcy   0         
-	tcmiy 0         
+	tcmiy 0         ; Clear the carry at 5/0
 	call  LCP5TO4   
 	br    S8B9      
-S8AF    tam             
+S8AF    tam             ; Update combat strength loop counter at 5/3
 	ldp   2         
-	call  LSUMB10  
+	call  LSUMB10   ; Add another round of "Warrior count" to the combat strength
 S8B9    ldx   5         
 	tcy   3         
-	dman            
-	br    S8AF      
-	call  LCP5TO4   
+	dman            ; Subtract 1 from first random number we generated at 5/3 (combat strength multiplier)
+	br    S8AF      ; Result was 0 or greater (hence 1-4 from the 0-3 random value).  Do another loop.
+
+	call  LCP5TO4   ; Save player combat strength in 4/1-2
 	call  LCPBRIG   ; Copy Brigand count to 5/1-2 for calculations
 	tcy   0         
 	tcmiy 0         
-	call  LSWP4N5   
+	call  LSWP4N5   ; Swap player combat strength and Brigand count
 	tcy   4         
-S898    tam             
+;
+; Combat strength has been calculated.  Now handle the sub-rounds to determine who wins this round.
+;
+; Sub-round loop
+;
+; Player must win all sub-rounds (count in 5/11, calculated above at L880) to win a full round.  Each sub-round subtracts
+; the Brigand count from the player's combat strength.
+;
+S898    tam             ; Store sub-round counter at 5/11 (NOTE: first pass stores in 4/4 - this appears to be a bug)
 	ldp   0         
 	tpc             
 	ldp   12        
-	call  L33F      
+	call  L33F      ; Perform a base 10 subtraction (alternate entry point to SU2B10) and return borrow flag in A
 	ldp   3         
-	dan             
-	br    L8FE      
+	dan             ; Decrement accumulator which will set S=1 if there was a borrow in SU2B10
+	br    L8FE      ; Player lost this round (ran out of combat strength)
 	tcy   11        
 	ldp   2         
-	dman            
-	br    S898      
-	tam             
-	call  LSWP4N5   
-	call  LCP5TO4   
-	call  LSUMB10  
-	call  LSWP4N5   
-	call  LSUMB10  
-	call  LSUMB10  
-	tma             
+	dman            ; Decrement the sub-round counter at 5/11
+	br    S898      ; Not done with this round yet, do it again
+;
+; Round is complete and player wins (this round)!
+;
+; Start calculating the number of Brigands remaining by multiplying starting Brigands by 5
+;
+	tam             ; Save the sub-round count at 5/11 (should be 0xF as we've ended the loop)
+	call  LSWP4N5   ; Brigand count was in 4/1-2, remaining player combat strength in 5/1-2 - swap them
+	call  LCP5TO4   ; Overwrite 4/1-2 with Brigand count - Bank 4 = X
+	call  LSUMB10   ; Bank 4 = X, Bank 5 = 2X
+	call  LSWP4N5   ; Bank 4 = 2X, Bank 5 = X
+	call  LSUMB10   ; Bank 4 = 2X, Bank 5 = 3X (2X + X)
+	call  LSUMB10   ; Bank 4 = 2X, Bank 5 = 5X (2X + 3X)
+	tma             ; Pick up overflow from 5/0
 	ldp   3         
 	br    L8C0      
 
@@ -3108,52 +3184,61 @@ LCPBRIG ldp   0
 
 ; *** Chapter 2 page 3
 
+;
+; Calculate remaining Brigands after this round by dividing remaining combat strength by 10
+;
+; Ultimately, each round the Brigands lose, their numbers are cut by 50% (multiply by 5 then divide by 10)
+;
 L8C0    tcy   1         
-	xma             
+	xma             ; Swap the 10s digit of the remaining combat strength with the original 100s digit at 5/0
 	tcy   2         
-	tam             
+	tam             ; Store the old 10s digit in the 1s digit
 	ldp   4         
-	call  L913      ; Update the Brigand count from 5/1-2
+	call  L913      ; Update the encounter Brigand count at 3/12-13 from 5/1-2
 	br    S8FB      
-L8FE    ldp   1         
-	call  S855      
-S8FB    tcy   6         ; Light middle lamp
-	setr            
-	call  S8C9      
+
+L8FE    ldp   1         ; Player lost this round...
+	call  KILLONE      
+
+S8FB    tcy   6         ; Select middle lamp (Warriors)
+	setr            ; Light it
+	call  S8C9      ; Play a beep
 	ldp   15        
-	call  LBD4      
-	call  5TODSPB   
-	call  S8C8      
-	tcy   6         ; Turn off middle lamp
-	rstr            
-	tcy   5         ; Light lower lamp
-	setr            
-	call  S8C9      
+	call  LBD4      ; Fetch Warrior count
+	call  5TODSPB   ; Copy the Warrior count into the display buffer for the LEDs
+	call  S8C8      ; Refresh the LEDs
+	tcy   6         ; Select the middle lamp
+	rstr            ; Turn it off
+	tcy   5         ; Select the lower lamp (Brigands)
+	setr            ; Turn it of
+	call  S8C9      ; Play a beep
 	ldp   2         
 	call  LCPBRIG   ; Copy Brigand count to 5/1-2
 	call  5TODSPB   ; Copy Brigand count to display buffer at 7/14-15
-	call  S8C8      
-	tcy   5         ; Turn off lower lamp
-	rstr            
+	call  S8C8      ; Refresh the LEDs
+	tcy   5         ; Select the lower lamp
+	rstr            ; Turn it off
 	ldx   5         
 	tcy   11        
-	imac            
-	br    S8C6      
-	ldp   3         
+	imac            ; Pick up the sub-round counter at 5/11, which was the last sub-round played, and decrement it
+	br    S8C6      ; If there was a borrow, the last sub-round was $F which means the player won - play winner
+	ldp   3         ; The player lost
 	tpc             
 	ldp   8         
 	call  PLYLOSR   ; Play the "lose round" sound
 	br    S8ED      
-S8C6    ldp   3         
+S8C6    ldp   3         ; The player won!
 	tpc             
 	ldp   7         
 	call  PLYWINR   ; Play the "win round" sound
 S8ED    ldp   1         
-	br    L840      
+	br    L840      ; Jump back to main combat loop
+
 5TODSPB ldp   0         
 	tpc             
 	ldp   8         
 	br    BUF2DSP   ; Update display buffer with contents of 5/1 and 5/2
+
 S8C8    ldp   0         
 	tpc             
 	ldp   9         
@@ -3163,10 +3248,13 @@ S8C9    ldp   3
 	tpc             
 	ldp   14        
 	br    LF80      
+;
+; Tomb/Ruin has been pressed
+;
 L8D9    ldp   1         
 	tpc             
 	ldp   15        
-	call  PLYOPEN   
+	call  PLYOPEN   ; Play the opening sound
 	ldp   4         
 	br    L900      
 
@@ -3178,18 +3266,18 @@ L8D4    ldp   0
 ; *** Chapter 2 page 4
 
 L900    ldp   15        
-	call  LRANDOM   
+	call  LRANDOM   ; Generate a random number from 0-15 in the accumulator
 	a14aac          ; Add 14; is the result 0-1 (12.5%)?
-	br    S93D      ; Nope
-	ldp   1         
+	br    S93D      ; Nope - check for Brigands
+	ldp   1         ; Tomb was empty
 	tpc             
 	ldp   15        
 	br    PLYCLOS   ; Nothing interesting in Tomb/Ruin--play the close sound
 
 S93D    a6aac           ; Add another 6; was the original value 2-9 (50%)?
-	br    S91D      ; Nope
+	br    S91D      ; Nope - give player gold (25% of the time)
 L937    ldp   0         
-	call  L800      ; BRIGANDS!
+	call  L800      ; Brigands
 	iac             
 	br    S91D      
 
@@ -3198,7 +3286,7 @@ S939    ldp   1
 	ldp   0         
 	br    ENDTURN   
 ;
-; Always give player Gold if Tomb/Ruin has something in it (Brigands or otherwise)
+; Give player Gold if Tomb/Ruin as long as the tomb wasn't empty (0-1 on roll)
 ;
 S91D    ldp   14        
 	call  LB86      ; Randomly award 13-20 Gold
@@ -3415,87 +3503,95 @@ S9A9    ynec  0         ; Did they hit Yes/Buy
 	tcy   3         
 	rbit  1         ; 0/3 bit 1 - cleared - flag that player has been cursed
 	ldp   7         
-	call  L9F6      ; Call CPY0TO5
+	call  L9F6      ; Copy target player's Gold to BCD scratchpad at 5/1-2
 	ldp   2         
-	call  LCP5TO4   
+	call  LCP5TO4   ; Copy it to 4/1-2 as well
 	ldp   7         
-	call  L9E9      
+	call  L9E9      ; Calculate amount of Gold to steal (ostensibly 25%) in 4/1-2
 	tcy   2         
 S9B2    ldx   4         
-	tma             
+	tma             ; Save stolen Gold amount to 6/1-2
 	ldx   6         
 	tamdyn          
 	br    S9B2      
 	ldp   7         
-	call  L9D1      ; Call SUBGOLD
+	call  L9D1      ; Call SUBGOLD and subtract that amount from target player's Gold
 	ldp   7         
 	br    L9C0      
 
 ; *** Chapter 2 page 7
 
 L9C0    ldp   15        
-	call  LBD4      
+	call  LBD4      ; Copy target player's warrior count to BCD scratchpad at 5/1-2
 	ldp   2         
-	call  LCP5TO4   
-	call  L9E9      
+	call  LCP5TO4   ; Copy it to 4/1-2.  Both 5/1-2 and 4/1-2 have target player Warrior count
+	call  L9E9      ; Calculate the number of Warriors to steal (ostensibly 25%) in 4/1-2
 	ldp   2         
-	call  LSWP4N5   
+	call  LSWP4N5   ; Swap Warrior count and theft count.  4/1-2 has original Warrior count, 5/1-2 has theft count
 	ldp   10        
-	call  CPY5TO7   
+	call  CPY5TO7   ; Save theft count into 7/1-2
 	ldp   2         
-	call  LSWP4N5   
-	call  L9D3      ; Call SUBWARR
+	call  LSWP4N5   ; Now, swap them back so the new Warrior count can be calculated, 4/1-2 has theft count.
+	call  L9D3      ; Call SUBWARR - Subtract the theft count in 4/1-2 and update player Warrior count
 	ldp   10        
-	call  CPY7TO5   
+	call  CPY7TO5   ; Restore the theft count to 5/1-2
 	ldp   2         
-	call  LSWP4N5   
+	call  LSWP4N5   ; Move it up to 4/1-2 to prepare to add it to cursing player's Warrior count
 S9E7    ldp   10        
-	call  ROTPLYR   
+	call  ROTPLYR   ; Rotate player stats buffers
 	ldx   4         
 	tcy   11        
-	mnea            
-	br    S9E7      
-	call  S9F2      ; Call ADDWARR
-	tcy   2         
+	mnea            ; Is this the cursing (current) player?
+	br    S9E7      ; Nope
+	call  S9F2      ; Yes it is.  Call ADDWARR to add stolen Warriors to player's count
+
+	tcy   2         ; Restore stolen Gold from 6/1-2 to 4/1-2
 S9D8    ldx   6         
 	tma             
 	ldx   4         
 	tamdyn          
 	br    S9D8      
-	call  L9EA      ; Call ADDGOLD
+	call  L9EA      ; Call ADDGOLD and add the stolen Gold to player's coffers
 	ldx   4         
 	tcy   13        
-	rbit  0         
+	rbit  0         ; Update 4/13 bit 0 to reflect a change in Warrior count
 	ldp   0         
 	tpc             
 	ldp   5         
-	call  DSPRSLT   ; Display results
+	call  DSPRSLT   ; Display updated Warrior count.  Interesting it doesn't do Gold...
 	ldp   4         
 	br    S939      
+
 L9F6    ldp   1         
 	tpc             
 	ldp   12        
 	br    CPY0TO5   
+
 L9E9    ldp   1         
 	tpc             
 	ldp   11        
 	br    L6C0      
+
 L9D1    ldp   1         
 	tpc             
 	ldp   5         
 	br    SUBGOLD   
+
 L9D3    ldp   1         
 	tpc             
 	ldp   5         
 	br    SUBWARR   
+
 S9F2    ldp   1         
 	tpc             
 	ldp   10        
 	br    ADDWARR   
+
 L9EA    ldp   1         
 	tpc             
 	ldp   6         
 	br    ADDGOLD   
+
 	mnea            
 
 ; *** Chapter 2 page 8
@@ -3735,7 +3831,7 @@ LAA7    ldp   3
 ; The order of buffer is: Warriors, Food, Beast, Scout, Healer
 ;
 ; Price values are set to:
-;   - Warriors: 3-8 bags of gold
+;   - Warriors: 5-8 bags of gold
 ;   - Food: 1 bag of gold
 ;   - Beast, Scout, Healer: 17-26 bags of gold each
 ;
@@ -3748,7 +3844,7 @@ LA98    ldp   3
 	tcmiy 1         ; 7/11 = 1 - Start at position 1
 	ldp   15        
 ;
-; Fill in position 1 with a random value from 3-8 (Warrior price)
+; Fill in position 1 with a random value from 5-8 (Warrior price)
 ;
 	call  LRANDOM   
 	ldx   4         
@@ -3924,7 +4020,7 @@ SB00    tcy   5         ; Wizard/Bazaar Closed/Key Missing
 ; Haggle...
 ;
 ; Call RANDOM to get a random value in the Accumulator.  On 0-7, haggling succeeds (50% of the time)
-; except when bit 1 of 4/12 is set.  Then it always fails.
+; except when bit 1 of 4/12 is set.  Then it has a 75% chance of success.
 ;
 LB3C    ldp   15        
 	call  LRANDOM   
@@ -3939,7 +4035,7 @@ LB3C    ldp   15
 ; First round of haggling has a better chance of succeeding.  4/12 bit 1 tracks.
 ;
 SB16    rbit  1         ; Clear 4/12 bit 1; this was your first chance, make it work for you...
-	a4aac           ; 68.75% chance of succeeding on first round (roll of 0-11)
+	a4aac           ; 75% chance of succeeding on first round (roll of 0-11)
 	br    SB00      ; Sorry, sucker
 ;
 ; Haggle succeeded.  Reduce the price by one bag of gold and update it in the buffer
@@ -3965,13 +4061,13 @@ LB06    ldp   11
 ; Handle Yes/Buy purchase
 ;
 	ldx   5         
-	tcy   5         
+	tcy   5         ; Starting with 5/5
 	ldp   12        
-SB34    tcmiy 0         
-	ynec  9         
+SB34    tcmiy 0         ; Zero out RAM
+	ynec  9         ; Until 5/9
 	br    SB34      
 LB24    ldp   15        
-	call  ROL5BY2   
+	call  ROL5BY2   ; 
 	ldp   2         
 	call  LCP5TO4   
 	ldp   15        
